@@ -1,0 +1,52 @@
+ARG RUBY_VERSION=3.2.4
+FROM ruby:$RUBY_VERSION-slim as base
+
+WORKDIR /rails
+
+RUN apt-get update -qq && \
+   apt-get install --no-install-recommends -y \
+   build-essential \
+   curl \
+   git \
+   libpq-dev \
+   pkg-config \
+   libxml2-dev \
+   libxslt1-dev \
+   postgresql-client \
+   libvips \
+   libjemalloc2 \
+   zlib1g-dev \
+   dos2unix \
+   && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives
+
+ENV RAILS_ENV=development \
+   BUNDLE_PATH=/usr/local/bundle \
+   BUNDLE_WITHOUT="" \
+   EDITOR=vim
+
+COPY Gemfile ./Gemfile
+COPY Gemfile.lock ./Gemfile.lock
+
+RUN gem install bundler && \
+   gem install nokogiri -v '1.16.8' --platform=ruby -- --use-system-libraries && \
+   bundle install
+
+COPY . .
+
+COPY bin/docker-entrypoint /rails/bin/docker-entrypoint
+RUN chmod +x /rails/bin/docker-entrypoint
+
+RUN chmod +x /rails/bin/docker-entrypoint && \
+   dos2unix /rails/bin/docker-entrypoint && \
+   find ./bin -type f -exec dos2unix {} \; && \
+   find ./bin -type f -exec chmod +x {} \;
+
+RUN sed -i 's/ruby\.exe/ruby/g' bin/* && \
+   sed -i 's/\r$//' bin/*
+
+EXPOSE 3000
+
+VOLUME ["/rails/tmp", "/rails/log", "/rails/storage"]
+
+ENTRYPOINT ["/rails/bin/docker-entrypoint"]
+CMD ["bin/rails", "server", "-b", "0.0.0.0"]
